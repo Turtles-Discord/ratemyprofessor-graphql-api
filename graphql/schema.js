@@ -3,13 +3,18 @@ import { gql } from 'apollo-server-micro';
 export const typeDefs = gql`
   type Professor {
     id: ID!
-    firstName: String!
-    lastName: String!
+    firstName: String
+    lastName: String
     department: String
     avgRating: Float
     numRatings: Int
     wouldTakeAgainPercent: Float
     avgDifficulty: Float
+  }
+
+  type Query {
+    searchProfessor(name: String!, school: String!): Professor
+    getProfessorReviews(id: ID!): [Review]
   }
 
   type Review {
@@ -19,14 +24,9 @@ export const typeDefs = gql`
     date: String
     comment: String
     tags: [String]
-    attendance: String
+    attendance: Boolean
     grade: String
-    textbook: String
-    onlineClass: String
-  }
-
-  type Query {
-    searchProfessor(name: String!, school: String!): Professor
-    getProfessorReviews(id: String!): [Review]
+    textbook: Boolean
+    onlineClass: Boolean
   }
 `; 
