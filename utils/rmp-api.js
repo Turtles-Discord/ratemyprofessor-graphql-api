@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const RMP_GRAPHQL_URL = 'https://www.ratemyprofessors.com/graphql';
 
-export async function searchProfessor(name, school) {
+export async function searchProfessor(name, schoolId) {
   try {
     const response = await axios.post(RMP_GRAPHQL_URL, {
       query: `
@@ -28,15 +28,22 @@ export async function searchProfessor(name, school) {
       variables: {
         query: {
           text: name,
-          schoolID: school,
+          schoolID: schoolId,
           fallback: true
         }
-      }
+      },
+      operationName: "TeacherSearchQuery"
     }, {
       headers: {
-        'User-Agent': 'Mozilla/5.0',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Accept': 'application/json',
-        'Content-Type': 'application/json'
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Origin': 'https://www.ratemyprofessors.com',
+        'Referer': 'https://www.ratemyprofessors.com/',
+        'apollographql-client-name': 'rmp-web',
+        'apollographql-client-version': '1.0.0',
+        'Cookie': 'ccpa-notice-viewed-02=true; trc_cookie_storage=taboola%2520global%253Auser-id%3D5ce11c44-1d00-45d0-af62-9ca1d888df77-tuctb4bc17'
       }
     });
 
