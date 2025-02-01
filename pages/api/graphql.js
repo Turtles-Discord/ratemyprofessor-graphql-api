@@ -9,14 +9,13 @@ const apolloServer = new ApolloServer({
   typeDefs,
   resolvers,
   context: ({ req }) => {
-    // Verify RapidAPI headers
+    // Check if the request is from RapidAPI
     const rapidApiKey = req.headers['x-rapidapi-key'];
-    const rapidApiProxy = req.headers['x-rapidapi-proxy-secret'];
-
-    if (!rapidApiKey || !rapidApiProxy) {
-      throw new Error('Unauthorized');
+    
+    if (!rapidApiKey || rapidApiKey !== process.env.RAPIDAPI_KEY) {
+      throw new Error('Invalid RapidAPI key');
     }
-
+    
     return { rapidApiKey };
   },
 });
@@ -28,7 +27,7 @@ export default cors(async function handler(req, res) {
     res.end();
     return false;
   }
-
+  
   await startServer;
   await apolloServer.createHandler({
     path: '/api/graphql',
