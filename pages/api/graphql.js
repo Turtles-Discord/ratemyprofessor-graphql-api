@@ -8,6 +8,8 @@ const cors = Cors();
 const apolloServer = new ApolloServer({
   typeDefs,
   resolvers,
+  persistedQueries: false,
+  cache: 'bounded',
   context: ({ req }) => {
     // Check if the request is from RapidAPI
     const rapidApiKey = req.headers['x-rapidapi-key'];
