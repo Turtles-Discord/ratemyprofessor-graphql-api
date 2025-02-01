@@ -8,20 +8,25 @@ const SCHOOL_IDS = {
 export const resolvers = {
   Query: {
     searchProfessor: async (_, { name, school }) => {
-      console.log('Searching for professor:', name, 'at school:', school);
+      console.log('\n=== Search Professor Request ===');
+      console.log('Name:', name);
+      console.log('School:', school);
       
       const schoolId = SCHOOL_IDS[school];
+      console.log('School ID:', schoolId);
+
       if (!schoolId) {
         console.error('School not found:', school);
         return null;
       }
 
       try {
-        // Use the utility function instead of direct fetch
+        console.log('Calling RMP API with:', { name, schoolId });
         const professor = await rmpSearch(name, schoolId);
+        console.log('RMP API Response:', professor);
         
         if (professor) {
-          return {
+          const result = {
             id: professor.id,
             firstName: professor.firstName,
             lastName: professor.lastName,
@@ -31,10 +36,17 @@ export const resolvers = {
             wouldTakeAgainPercent: professor.wouldTakeAgainPercent,
             avgDifficulty: professor.avgDifficulty
           };
+          console.log('Returning professor data:', result);
+          return result;
         }
+        console.log('No professor found');
         return null;
       } catch (error) {
-        console.error('Error searching for professor:', error);
+        console.error('Error details:', {
+          message: error.message,
+          response: error.response?.data,
+          status: error.response?.status
+        });
         return null;
       }
     },
