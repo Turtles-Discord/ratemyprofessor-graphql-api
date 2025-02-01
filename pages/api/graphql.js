@@ -16,29 +16,27 @@ const apolloServer = new ApolloServer({
     console.log('Environment Variables:');
     console.log('RAPIDAPI_KEY:', process.env.RAPIDAPI_KEY);
     
+    // Check for both header formats
+    const rapidApiKey = req.headers['x-rapidapi-key'] || req.headers['X-RapidAPI-Key'];
+    
     console.log('\nRequest Headers:');
-    console.log('x-rapidapi-key:', req.headers['x-rapidapi-key']);
+    console.log('x-rapidapi-key:', rapidApiKey);
     console.log('x-rapidapi-host:', req.headers['x-rapidapi-host']);
     console.log('content-type:', req.headers['content-type']);
     
-    console.log('\nRequest Method:', req.method);
-    console.log('Request URL:', req.url);
-    
-    console.log('\nAll Headers:', JSON.stringify(req.headers, null, 2));
-    
-    // Check RapidAPI key
-    const rapidApiKey = req.headers['x-rapidapi-key'];
+    // Check RapidAPI proxy secret
+    const proxySecret = req.headers['x-rapidapi-proxy-secret'] || req.headers['x-mashape-proxy-secret'];
+    console.log('Proxy Secret:', proxySecret);
     
     if (!rapidApiKey) {
+      // Check if this is a RapidAPI request
+      if (proxySecret) {
+        // If it's from RapidAPI but missing the key, use the environment variable
+        console.log('Using environment variable as fallback');
+        return { rapidApiKey: process.env.RAPIDAPI_KEY };
+      }
       console.log('Error: No RapidAPI key provided');
       throw new Error('No RapidAPI key provided');
-    }
-    
-    if (rapidApiKey !== process.env.RAPIDAPI_KEY) {
-      console.log('Error: Invalid RapidAPI key');
-      console.log('Received:', rapidApiKey);
-      console.log('Expected:', process.env.RAPIDAPI_KEY);
-      throw new Error('Invalid RapidAPI key');
     }
     
     console.log('=== Authentication Successful ===');
