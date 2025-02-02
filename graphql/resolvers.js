@@ -12,13 +12,20 @@ const SCHOOL_IDS = {
   'Sacramento State University': 'U2Nob29sLTE2NA=='  // Alternative name for CSUS
 };
 
+// Updated headers with new security tokens
 const headers = {
   'Content-Type': 'application/json',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-  'Accept': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': '*/*',
   'Accept-Language': 'en-US,en;q=0.9',
   'Origin': 'https://www.ratemyprofessors.com',
   'Referer': 'https://www.ratemyprofessors.com/',
+  'Connection': 'keep-alive',
+  'Sec-Fetch-Dest': 'empty',
+  'Sec-Fetch-Mode': 'cors',
+  'Sec-Fetch-Site': 'same-origin',
+  'Authorization': 'Basic dGVzdDp0ZXN0',
+  'Cookie': 'ccpa-notice-viewed-02=true; _gid=GA1.2.1994820145.1709060146; _gcl_au=1.1.1843302301.1709060146; _ga=GA1.1.450661597.1709060146; _uetsid=4e1247e0d54411eeb3d683790b4c956e; _uetvid=4e126d30d54411ee8c3a87b0aa4c7ab4; _ga_WEN3XKV610=GS1.1.1709060145.1.1.1709060161.0.0.0',
   'apollographql-client-name': 'rmp-web',
   'apollographql-client-version': '1.0.0'
 };
@@ -47,8 +54,9 @@ export const resolvers = {
         console.log('Using school ID:', schoolId);
         console.log('Decoded school ID:', decodeBase64Id(schoolId));
 
-        // Step 2: Search for professor
+        // Updated professor search query
         const profResponse = await axios.post(RMP_GRAPHQL_URL, {
+          operationName: "TeacherSearchQuery",
           query: `
             query TeacherSearchQuery($query: TeacherSearchQuery!) {
               newSearch {
@@ -72,11 +80,18 @@ export const resolvers = {
           variables: {
             query: {
               text: name,
-              schoolID: schoolId
+              schoolID: schoolId,
+              fallback: true,
+              departmentID: null
             }
           }
-        }, { headers });
+        }, { 
+          headers,
+          withCredentials: true
+        });
 
+        console.log('Response Status:', profResponse.status);
+        console.log('Response Headers:', profResponse.headers);
         console.log('Professor search response:', JSON.stringify(profResponse.data, null, 2));
 
         const professor = profResponse.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
