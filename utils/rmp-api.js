@@ -2,114 +2,162 @@ import axios from 'axios';
 
 const RMP_GRAPHQL_URL = 'https://www.ratemyprofessors.com/graphql';
 
-export async function searchProfessor(name, schoolId) {
-  console.log('\n=== RMP API Request ===');
-  console.log('URL:', RMP_GRAPHQL_URL);
-  console.log('Name:', name);
-  console.log('School ID:', schoolId);
+// Common schools mapping
+const SCHOOL_IDS = {
+  'Cosumnes River College': 'U2Nob29sLTE5Mzg=',     // CRC
+  'American River College': 'U2Nob29sLTEzMDQ=',      // ARC
+  'Sacramento City College': 'U2Nob29sLTEzMDM=',     // SCC
+  'Folsom Lake College': 'U2Nob29sLTQ2ODc=',        // FLC
+  'Sacramento State': 'U2Nob29sLTE2NA==',           // CSUS
+  'Sacramento State University': 'U2Nob29sLTE2NA=='  // Alternative name for CSUS
+};
 
-  const query = {
-    query: `
-      query TeacherSearchQuery($query: TeacherSearchQuery!) {
-        newSearch {
-          teachers(query: $query) {
-            edges {
-              node {
-                id
-                firstName
-                lastName
-                department
-                avgRating
-                numRatings
-                wouldTakeAgainPercent
-                avgDifficulty
+const headers = {
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.ratemyprofessors.com',
+  'Referer': 'https://www.ratemyprofessors.com/',
+  'apollographql-client-name': 'rmp-web',
+  'apollographql-client-version': '1.0.0',
+  'Cookie': 'ccpa-notice-viewed-02=true; trc_cookie_storage=taboola%2520global%253Auser-id%3D5ce11c44-1d00-45d0-af62-9ca1d888df77-tuctb4bc17'
+};
+
+// Utility function to decode base64 IDs
+function decodeBase64Id(base64Id) {
+  if (!base64Id) return null;
+  const decodedId = atob(base64Id);  // Decodes "VGVhY2hlci0yNTQxODYw" to "Teacher-2541860"
+  const numericId = decodedId.split('-')[1];  // Gets "2541860"
+  return numericId;
+}
+
+// Get school ID from common list or search RMP
+async function getSchoolId(name) {
+  console.log('Looking up school ID for:', name);
+  
+  // Check common schools first
+  const schoolId = SCHOOL_IDS[name];
+  if (schoolId) {
+    console.log('Found in common schools:', schoolId);
+    return schoolId;
+  }
+
+  // If not in common schools, search RMP
+  try {
+    const response = await axios.post(RMP_GRAPHQL_URL, {
+      query: `
+        query SearchSchoolsQuery($query: SchoolSearchQuery!) {
+          newSearch {
+            schools(query: $query) {
+              edges {
+                node {
+                  id
+                  name
+                  city
+                  state
+                }
               }
             }
           }
         }
+      `,
+      variables: {
+        query: {
+          text: name
+        }
       }
-    `,
-    variables: {
-      query: {
-        text: name,
-        schoolID: schoolId,
-        fallback: true
-      }
-    },
-    operationName: "TeacherSearchQuery"
-  };
+    }, { headers });
 
-  const headers = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Accept': 'application/json',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Origin': 'https://www.ratemyprofessors.com',
-    'Referer': 'https://www.ratemyprofessors.com/',
-    'apollographql-client-name': 'rmp-web',
-    'apollographql-client-version': '1.0.0',
-    'Authorization': 'Basic dGVzdDp0ZXN0',
-    'sec-ch-ua': '"Not?A_Brand";v="8", "Chromium";v="108"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-    'sec-fetch-dest': 'empty',
-    'sec-fetch-mode': 'cors',
-    'sec-fetch-site': 'same-origin',
-    'Cookie': 'ccpa-notice-viewed-02=true; trc_cookie_storage=taboola%2520global%253Auser-id%3D5ce11c44-1d00-45d0-af62-9ca1d888df77-tuctb4bc17; _ga=GA1.1.1849503966.1673632720; _ga_WE3KFFCPK9=GS1.1.1673632719.1.1.1673632739.0.0.0'
-  };
+    const schools = response.data?.data?.newSearch?.schools?.edges || [];
+    const matchedSchool = schools.find(e => 
+      e.node.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (matchedSchool) {
+      console.log('Found school:', matchedSchool.node.name, 'ID:', matchedSchool.node.id);
+      return matchedSchool.node.id;
+    }
+    
+    console.log('School not found in RMP search');
+    return null;
+  } catch (error) {
+    console.error('Error searching for school:', error);
+    return null;
+  }
+}
+
+// Main function to search for professor
+export async function searchProfessor(name, school) {
+  console.log('\n=== RMP API Request ===');
+  console.log('Professor Name:', name);
+  console.log('School Name:', school);
 
   try {
-    // First, get the CSRF token
-    const tokenResponse = await axios.options(RMP_GRAPHQL_URL, {
-      headers: {
-        'Access-Control-Request-Method': 'POST',
-        'Access-Control-Request-Headers': 'content-type',
-        'Origin': 'https://www.ratemyprofessors.com'
-      }
-    });
-
-    // Add CSRF token if available
-    const csrfToken = tokenResponse.headers['x-csrf-token'];
-    if (csrfToken) {
-      headers['x-csrf-token'] = csrfToken;
+    // Step 1: Get school ID
+    const schoolId = await getSchoolId(school);
+    if (!schoolId) {
+      console.error('School not found:', school);
+      return null;
     }
+    console.log('Using school ID:', schoolId);
+    console.log('Decoded school ID:', decodeBase64Id(schoolId));
 
-    console.log('Request Headers:', headers);
-    console.log('Request Body:', JSON.stringify(query, null, 2));
+    // Step 2: Search for professor
+    const response = await axios.post(RMP_GRAPHQL_URL, {
+      query: `
+        query TeacherSearchQuery($query: TeacherSearchQuery!) {
+          newSearch {
+            teachers(query: $query) {
+              edges {
+                node {
+                  id
+                  firstName
+                  lastName
+                  department
+                  avgRating
+                  numRatings
+                  wouldTakeAgainPercent
+                  avgDifficulty
+                }
+              }
+            }
+          }
+        }
+      `,
+      variables: {
+        query: {
+          text: name,
+          schoolID: schoolId,
+          fallback: true
+        }
+      }
+    }, { headers });
 
-    const response = await axios.post(RMP_GRAPHQL_URL, query, { 
-      headers,
-      withCredentials: true
-    });
-    
-    console.log('Response Status:', response.status);
-    console.log('Response Headers:', response.headers);
-    console.log('Response Data:', JSON.stringify(response.data, null, 2));
-
-    const professor = response.data?.data?.newSearch?.teachers?.edges[0]?.node;
+    const professor = response.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
     if (professor) {
       const result = {
         ...professor,
-        id: atob(professor.id).split('-')[1]
+        id: decodeBase64Id(professor.id)
       };
-      console.log('Processed Professor Data:', result);
+      console.log('Found professor:', result);
       return result;
     }
-    console.log('No professor found in response');
+
+    console.log('No professor found');
     return null;
 
   } catch (error) {
     console.error('RMP API Error:', {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status,
-      headers: error.response?.headers
+      status: error.response?.status
     });
-    throw error;
+    return null;
   }
 }
 
 export async function getReviews(professorId) {
-  // Implement review fetching similar to your existing code
-  // This will use the logic from your content.js
-} 
+  // Implementation for getting reviews
+  return [];
+}
