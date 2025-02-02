@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const RMP_GRAPHQL_URL = 'https://www.ratemyprofessors.com/graphql';
 
-// Common schools mapping from the extension
+// Common schools mapping
 const SCHOOL_IDS = {
   'Cosumnes River College': 'U2Nob29sLTE5Mzg=',     // CRC
   'American River College': 'U2Nob29sLTEzMDQ=',      // ARC
@@ -12,25 +12,21 @@ const SCHOOL_IDS = {
   'Sacramento State University': 'U2Nob29sLTE2NA=='  // Alternative name for CSUS
 };
 
-// Utility functions from the extension
-function getSchoolId(name) {
-  console.log('Looking up school ID for:', name);
-  
-  const schoolId = SCHOOL_IDS[name];
-  if (!schoolId) {
-    console.error('School not found:', name);
-    console.log('Supported schools:', Object.keys(SCHOOL_IDS));
-    return null;
-  }
-  
-  console.log('Found school ID:', schoolId);
-  return schoolId;
-}
+const headers = {
+  'Content-Type': 'application/json',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  'Accept': 'application/json',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Origin': 'https://www.ratemyprofessors.com',
+  'Referer': 'https://www.ratemyprofessors.com/',
+  'apollographql-client-name': 'rmp-web',
+  'apollographql-client-version': '1.0.0'
+};
 
 function decodeBase64Id(base64Id) {
   if (!base64Id) return null;
-  const decodedId = atob(base64Id);  // Decodes "VGVhY2hlci0yNTQxODYw" to "Teacher-2541860"
-  const numericId = decodedId.split('-')[1];  // Gets "2541860"
+  const decodedId = atob(base64Id);
+  const numericId = decodedId.split('-')[1];
   return numericId;
 }
 
@@ -42,17 +38,17 @@ export const resolvers = {
       console.log('School:', school);
 
       try {
-        // Get school ID using the extension's method
-        const schoolId = getSchoolId(school) || await searchSchool(school);
+        // Step 1: Get school ID
+        let schoolId = SCHOOL_IDS[school];
         if (!schoolId) {
           console.error('School not found:', school);
           return null;
         }
-
         console.log('Using school ID:', schoolId);
         console.log('Decoded school ID:', decodeBase64Id(schoolId));
 
-        const response = await axios.post(RMP_GRAPHQL_URL, {
+        // Step 2: Search for professor
+        const profResponse = await axios.post(RMP_GRAPHQL_URL, {
           query: `
             query TeacherSearchQuery($query: TeacherSearchQuery!) {
               newSearch {
@@ -76,25 +72,17 @@ export const resolvers = {
           variables: {
             query: {
               text: name,
-              schoolID: schoolId,
-              fallback: true
+              schoolID: schoolId
             }
           }
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': 'application/json',
-            'Origin': 'https://www.ratemyprofessors.com',
-            'Referer': 'https://www.ratemyprofessors.com/'
-          }
-        });
+        }, { headers });
 
-        const professor = response.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
-        
+        console.log('Professor search response:', JSON.stringify(profResponse.data, null, 2));
+
+        const professor = profResponse.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
         if (professor) {
-          return {
-            id: decodeBase64Id(professor.id), // Convert base64 ID to numeric
+          const result = {
+            id: decodeBase64Id(professor.id),
             firstName: professor.firstName,
             lastName: professor.lastName,
             department: professor.department,
@@ -103,16 +91,19 @@ export const resolvers = {
             wouldTakeAgainPercent: professor.wouldTakeAgainPercent,
             avgDifficulty: professor.avgDifficulty
           };
+          console.log('Found professor:', result);
+          return result;
         }
 
-        console.log('No professor found');
+        console.log('No professor found in response');
         return null;
 
       } catch (error) {
         console.error('Error details:', {
           message: error.message,
           response: error.response?.data,
-          status: error.response?.status
+          status: error.response?.status,
+          headers: error.response?.headers
         });
         return null;
       }
