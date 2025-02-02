@@ -1,9 +1,6 @@
-import axios from 'axios';
+import { searchProfessor as rmpSearch } from '../utils/rmp-api';
 
-const RMP_GRAPHQL_URL = 'https://www.ratemyprofessors.com/graphql';
-
-// Common schools for faster lookup
-const COMMON_SCHOOL_IDS = {
+const SCHOOL_IDS = {
   'Cosumnes River College': 'U2Nob29sLTE5Mzg=',     // CRC
   'American River College': 'U2Nob29sLTEzMDQ=',      // ARC
   'Sacramento City College': 'U2Nob29sLTEzMDM=',     // SCC
@@ -14,185 +11,25 @@ const COMMON_SCHOOL_IDS = {
 
 export const resolvers = {
   Query: {
-    getSchoolId: async (_, { schoolName }) => {
-      console.log('\n=== Get School ID Request ===');
-      console.log('School Name:', schoolName);
-
-      try {
-        // First check common schools
-        if (COMMON_SCHOOL_IDS[schoolName]) {
-          const id = COMMON_SCHOOL_IDS[schoolName];
-          console.log('Found in common schools:', id);
-          return {
-            name: schoolName,
-            id: id,
-            decodedId: atob(id)
-          };
-        }
-
-        // If not in common schools, search RMP
-        const response = await axios.post(RMP_GRAPHQL_URL, {
-          query: `
-            query SearchSchoolsQuery($query: SchoolSearchQuery!) {
-              newSearch {
-                schools(query: $query) {
-                  edges {
-                    node {
-                      id
-                      name
-                      city
-                      state
-                    }
-                  }
-                }
-              }
-            }
-          `,
-          variables: {
-            query: {
-              text: schoolName
-            }
-          }
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': 'application/json',
-            'Origin': 'https://www.ratemyprofessors.com',
-            'Referer': 'https://www.ratemyprofessors.com/'
-          }
-        });
-
-        const schools = response.data?.data?.newSearch?.schools?.edges || [];
-        const matchedSchool = schools.find(e => 
-          e.node.name.toLowerCase() === schoolName.toLowerCase()
-        );
-
-        if (matchedSchool) {
-          const result = {
-            name: matchedSchool.node.name,
-            id: matchedSchool.node.id,
-            decodedId: atob(matchedSchool.node.id),
-            city: matchedSchool.node.city,
-            state: matchedSchool.node.state
-          };
-          console.log('Found school:', result);
-          return result;
-        }
-
-        console.log('School not found');
-        return null;
-      } catch (error) {
-        console.error('Error getting school ID:', error);
-        return null;
-      }
-    },
-
     searchProfessor: async (_, { name, school }) => {
       console.log('\n=== Search Professor Request ===');
       console.log('Name:', name);
       console.log('School:', school);
+      console.log('Available Schools:', Object.keys(SCHOOL_IDS));
+      
+      const schoolId = SCHOOL_IDS[school];
+      console.log('School ID:', schoolId);
+
+      if (!schoolId) {
+        console.error('School not found:', school);
+        console.log('Please use one of these school names:', Object.keys(SCHOOL_IDS).join(', '));
+        return null;
+      }
 
       try {
-        // Step 1: Get School ID (first check common schools, then search)
-        let schoolId = COMMON_SCHOOL_IDS[school];
-        
-        if (!schoolId) {
-          console.log('School not in common list, searching RMP...');
-          
-          // Search for school
-          const schoolSearchResponse = await axios.post(RMP_GRAPHQL_URL, {
-            query: `
-              query SearchSchoolsQuery($query: SchoolSearchQuery!) {
-                newSearch {
-                  schools(query: $query) {
-                    edges {
-                      node {
-                        id
-                        name
-                        city
-                        state
-                      }
-                    }
-                  }
-                }
-              }
-            `,
-            variables: {
-              query: {
-                text: school
-              }
-            }
-          }, {
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0',
-              'Accept': 'application/json',
-              'Origin': 'https://www.ratemyprofessors.com',
-              'Referer': 'https://www.ratemyprofessors.com/'
-            }
-          });
-
-          const schools = schoolSearchResponse.data?.data?.newSearch?.schools?.edges || [];
-          console.log('Found schools:', schools.map(e => e.node.name));
-
-          // Find best matching school
-          const matchedSchool = schools.find(e => 
-            e.node.name.toLowerCase() === school.toLowerCase()
-          );
-
-          if (matchedSchool) {
-            schoolId = matchedSchool.node.id;
-            console.log('Found school ID:', schoolId);
-          }
-        }
-
-        if (!schoolId) {
-          console.error('School not found:', school);
-          return null;
-        }
-
-        // Step 2: Search for professor with school ID
-        console.log('Searching for professor with:', { name, schoolId });
-        const profResponse = await axios.post(RMP_GRAPHQL_URL, {
-          query: `
-            query TeacherSearchQuery($query: TeacherSearchQuery!) {
-              newSearch {
-                teachers(query: $query) {
-                  edges {
-                    node {
-                      id
-                      firstName
-                      lastName
-                      department
-                      avgRating
-                      numRatings
-                      wouldTakeAgainPercent
-                      avgDifficulty
-                    }
-                  }
-                }
-              }
-            }
-          `,
-          variables: {
-            query: {
-              text: name,
-              schoolID: schoolId,
-              fallback: true
-            }
-          }
-        }, {
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': 'Mozilla/5.0',
-            'Accept': 'application/json',
-            'Origin': 'https://www.ratemyprofessors.com',
-            'Referer': 'https://www.ratemyprofessors.com/'
-          }
-        });
-
-        const professor = profResponse.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
+        console.log('Calling RMP API with:', { name, schoolId });
+        const professor = await rmpSearch(name, schoolId);
+        console.log('RMP API Response:', professor);
         
         if (professor) {
           const result = {
@@ -205,13 +42,11 @@ export const resolvers = {
             wouldTakeAgainPercent: professor.wouldTakeAgainPercent,
             avgDifficulty: professor.avgDifficulty
           };
-          console.log('Found professor:', result);
+          console.log('Returning professor data:', result);
           return result;
         }
-
         console.log('No professor found');
         return null;
-
       } catch (error) {
         console.error('Error details:', {
           message: error.message,
