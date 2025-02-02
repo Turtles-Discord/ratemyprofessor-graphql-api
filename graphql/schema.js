@@ -1,6 +1,14 @@
 import { gql } from 'apollo-server-micro';
 
 export const typeDefs = gql`
+  type SchoolInfo {
+    name: String!
+    id: String!
+    decodedId: String!
+    city: String
+    state: String
+  }
+
   type Professor {
     id: ID!
     firstName: String
@@ -13,6 +21,7 @@ export const typeDefs = gql`
   }
 
   type Query {
+    getSchoolId(schoolName: String!): SchoolInfo
     searchProfessor(name: String!, school: String!): Professor
     getProfessorReviews(id: ID!): [Review]
   }

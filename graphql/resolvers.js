@@ -14,6 +14,80 @@ const COMMON_SCHOOL_IDS = {
 
 export const resolvers = {
   Query: {
+    getSchoolId: async (_, { schoolName }) => {
+      console.log('\n=== Get School ID Request ===');
+      console.log('School Name:', schoolName);
+
+      try {
+        // First check common schools
+        if (COMMON_SCHOOL_IDS[schoolName]) {
+          const id = COMMON_SCHOOL_IDS[schoolName];
+          console.log('Found in common schools:', id);
+          return {
+            name: schoolName,
+            id: id,
+            decodedId: atob(id)
+          };
+        }
+
+        // If not in common schools, search RMP
+        const response = await axios.post(RMP_GRAPHQL_URL, {
+          query: `
+            query SearchSchoolsQuery($query: SchoolSearchQuery!) {
+              newSearch {
+                schools(query: $query) {
+                  edges {
+                    node {
+                      id
+                      name
+                      city
+                      state
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: {
+            query: {
+              text: schoolName
+            }
+          }
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+            'Accept': 'application/json',
+            'Origin': 'https://www.ratemyprofessors.com',
+            'Referer': 'https://www.ratemyprofessors.com/'
+          }
+        });
+
+        const schools = response.data?.data?.newSearch?.schools?.edges || [];
+        const matchedSchool = schools.find(e => 
+          e.node.name.toLowerCase() === schoolName.toLowerCase()
+        );
+
+        if (matchedSchool) {
+          const result = {
+            name: matchedSchool.node.name,
+            id: matchedSchool.node.id,
+            decodedId: atob(matchedSchool.node.id),
+            city: matchedSchool.node.city,
+            state: matchedSchool.node.state
+          };
+          console.log('Found school:', result);
+          return result;
+        }
+
+        console.log('School not found');
+        return null;
+      } catch (error) {
+        console.error('Error getting school ID:', error);
+        return null;
+      }
+    },
+
     searchProfessor: async (_, { name, school }) => {
       console.log('\n=== Search Professor Request ===');
       console.log('Name:', name);
