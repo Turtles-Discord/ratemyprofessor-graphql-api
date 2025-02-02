@@ -27,8 +27,8 @@ const headers = {
 // Utility function to decode base64 IDs
 function decodeBase64Id(base64Id) {
   if (!base64Id) return null;
-  const decodedId = atob(base64Id);  // Decodes "VGVhY2hlci0yNTQxODYw" to "Teacher-2541860"
-  const numericId = decodedId.split('-')[1];  // Gets "2541860"
+  const decodedId = atob(base64Id);
+  const numericId = decodedId.split('-')[1];
   return numericId;
 }
 
@@ -36,7 +36,6 @@ function decodeBase64Id(base64Id) {
 async function getSchoolId(name) {
   console.log('Looking up school ID for:', name);
   
-  // Check common schools first
   const schoolId = SCHOOL_IDS[name];
   if (schoolId) {
     console.log('Found in common schools:', schoolId);
@@ -103,8 +102,8 @@ export async function searchProfessor(name, school) {
     console.log('Using school ID:', schoolId);
     console.log('Decoded school ID:', decodeBase64Id(schoolId));
 
-    // Step 2: Search for professor
-    const response = await axios.post(RMP_GRAPHQL_URL, {
+    // Step 2: Search for professor with detailed logging
+    const profQuery = {
       query: `
         query TeacherSearchQuery($query: TeacherSearchQuery!) {
           newSearch {
@@ -132,7 +131,18 @@ export async function searchProfessor(name, school) {
           fallback: true
         }
       }
-    }, { headers });
+    };
+
+    console.log('Professor search query:', JSON.stringify(profQuery, null, 2));
+    
+    const response = await axios.post(RMP_GRAPHQL_URL, profQuery, { 
+      headers,
+      validateStatus: false // To see all response statuses
+    });
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+    console.log('Response data:', JSON.stringify(response.data, null, 2));
 
     const professor = response.data?.data?.newSearch?.teachers?.edges?.[0]?.node;
     if (professor) {
@@ -144,14 +154,15 @@ export async function searchProfessor(name, school) {
       return result;
     }
 
-    console.log('No professor found');
+    console.log('No professor found in response');
     return null;
 
   } catch (error) {
     console.error('RMP API Error:', {
       message: error.message,
       response: error.response?.data,
-      status: error.response?.status
+      status: error.response?.status,
+      headers: error.response?.headers
     });
     return null;
   }
